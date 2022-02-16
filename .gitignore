@@ -1,0 +1,41 @@
+# FILES
+*.yaml
+*.pkl
+*.flist
+*.zip
+*.out
+*.npy
+*.gz
+*.ckpt
+*.pth
+*.log
+*.pyc
+*.csv
+*.yml
+*.ods
+*.ods#
+*.json
+
+# Images / Videos
+*.png
+*.jpg
+*.jpeg
+*.m4a
+*.mkv
+*.mp4
+
+
+
+
+# From pip setup
+build/
+*.egg-info
+*.egg
+.npm/
+
+# From dockerfile
+.bash_history
+.viminfo
+.local/
+*.pickle
+*.onnx
