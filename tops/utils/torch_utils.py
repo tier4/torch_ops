@@ -17,6 +17,13 @@ def rank():
         return dist.get_rank()
     return 0
 
+
+def world_size():
+    if dist.is_available() and dist.is_initialized():
+        return dist.get_world_size()
+    return 1
+
+
 def set_AMP(value: bool):
     global AMP_enabled
     AMP_enabled = value
@@ -165,8 +172,6 @@ def print_module_summary(module, inputs, max_nesting=3, skip_redundant=True):
     return outputs
 
 
-
-
 def cuda_stream_wrap(stream):
     if torch.cuda.is_available():
         return torch.cuda.stream(stream)
@@ -187,14 +192,13 @@ class DataPrefetcher:
 
     def __init__(self,
                  loader: torch.utils.data.DataLoader,
-                 image_gpu_transforms: torch.nn.Module):
+                 gpu_transform: torch.nn.Module):
         self.original_loader = loader
         self.stream = None
         if torch.cuda.is_available():
             self.stream = torch.cuda.Stream(device=get_device())
         self.loader = iter(self.original_loader)
-        self.image_gpu_transforms = image_gpu_transforms
-        self.it = 0
+        self.image_gpu_transforms = gpu_transform
 
     @torch.no_grad()
     def _preload(self):
@@ -209,7 +213,7 @@ class DataPrefetcher:
                 for key, item in self.batch.items():
                     self.batch[key] = to_cuda(item).float()
             if isinstance(self.batch, (tuple)):
-                self.batch = tuple(to_cuda(x)  for x in self.batch)
+                self.batch = tuple(to_cuda(x) for x in self.batch)
             self.batch = self.image_gpu_transforms(self.batch)
 
     def __len__(self):
@@ -228,7 +232,6 @@ class DataPrefetcher:
         return container
 
     def __iter__(self):
-        self.it += 1
         self.loader = iter(self.original_loader)
         self._preload()
         return self
@@ -238,13 +241,13 @@ class DataPrefetcher:
 
 
 
-----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # Sampler for torch.utils.data.DataLoader that loops over the dataset
 # indefinitely, shuffling items as it goes.
 # From https://github.com/NVlabs/stylegan2-ada-pytorch/blob/main/torch_utils/misc.py
 
 class InfiniteSampler(torch.utils.data.Sampler):
-    def __init__(self, dataset, rank=0, num_replicas=1, shuffle=True, window_size=0.5, **kwargs):
+    def __init__(self, dataset, rank=0, num_replicas=1, shuffle=True, window_size=0.5):
         assert len(dataset) > 0
         assert num_replicas > 0
         assert 0 <= rank < num_replicas
