@@ -198,7 +198,7 @@ class DataPrefetcher:
         if torch.cuda.is_available():
             self.stream = torch.cuda.Stream(device=get_device())
         self.loader = iter(self.original_loader)
-        self.image_gpu_transforms = gpu_transform
+        self.image_gpu_transform = gpu_transform
 
     @torch.no_grad()
     def _preload(self):
@@ -214,7 +214,7 @@ class DataPrefetcher:
                     self.batch[key] = to_cuda(item).float()
             if isinstance(self.batch, (tuple)):
                 self.batch = tuple(to_cuda(x) for x in self.batch)
-            self.batch = self.image_gpu_transforms(self.batch)
+            self.batch = self.image_gpu_transform(self.batch)
 
     def __len__(self):
         return len(self.original_loader)
@@ -278,3 +278,50 @@ class InfiniteSampler(torch.utils.data.Sampler):
                 j = (i - rnd.randint(window)) % order.size
                 order[i], order[j] = order[j], order[i]
             idx += 1
+
+
+@torch.no_grad()
+def im2numpy(images, to_uint8=False):
+    """
+        Converts torch image [N, C, H, W] to [N, H, W, C] numpy tensor
+        Args:
+            to_uint8: Convert to uint8 tensor
+    """
+    single_image = False
+    if len(images.shape) == 3:
+        single_image = True
+        images = images[None]
+    images = images.detach().cpu().numpy()
+
+    images = np.moveaxis(images, 1, -1)
+    if to_uint8:
+        images = (images * 255).astype(np.uint8)
+    if single_image:
+        return images[0]
+    return images
+
+
+@torch.no_grad()
+def im2torch(im, cuda=False, to_float=True):
+    """
+        Converts numpy of shape [H, W, C] to torch tensor of shape [N, C, H, W].
+        Args:
+            to_float: Convert uint8 to float
+            cuda: Move image to GPU VRAM
+    """
+    assert len(im.shape) in [3, 4]
+    single_image = len(im.shape) == 3
+    if im.dtype == np.uint8 and to_float:
+        im = im.astype(np.float32)
+        im /= 255
+    if single_image:
+        im = np.rollaxis(im, 2)
+        im = im[None, :, :, :]
+    else:
+        im = np.moveaxis(im, -1, 1)
+    image = torch.from_numpy(im).contiguous()
+    if cuda:
+        image = to_cuda(image)
+    if to_float:
+        assert image.min() >= 0.0 and image.max() <= 1.0
+    return image
