@@ -4,6 +4,7 @@ import pathlib
 from ..logger import global_step, log
 from typing import List, Optional
 from argparse import ArgumentError
+from ..utils.torch_utils import get_device
 
 _checkpoint_dir = None
 _models = None
@@ -18,7 +19,7 @@ def load_checkpoint(
         load_best: bool = False,
         map_location=None) -> dict:
     if map_location is None:
-        map_location = f"cuda:0" if torch.cuda.is_available() else "cpu"
+        map_location = get_device()
     if checkpoint_path is None:
         checkpoint_path = _checkpoint_dir
         if _checkpoint_dir is None:
