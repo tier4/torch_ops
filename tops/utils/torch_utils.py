@@ -53,7 +53,7 @@ def set_seed(seed: int):
     np.random.seed(seed)
     random.seed(seed)
 
-def get_seed(seed:  int):
+def get_seed():
     return _seed
 
 
