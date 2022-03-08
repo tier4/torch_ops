@@ -1,27 +1,17 @@
 import random
-from typing import Any
 import numpy as np
 import torch
 import tqdm
-import torch.distributed as dist
 import torch
+import warnings
+from typing import Any
 from contextlib import contextmanager
 from time import time
 from easydict import EasyDict
+from .dist_utils import rank
 
 AMP_enabled = False
 _seed = 0
-
-def rank():
-    if dist.is_available() and dist.is_initialized():
-        return dist.get_rank()
-    return 0
-
-
-def world_size():
-    if dist.is_available() and dist.is_initialized():
-        return dist.get_world_size()
-    return 1
 
 
 def set_AMP(value: bool):
@@ -43,6 +33,13 @@ def to_cuda(elements):
     if isinstance(elements, dict):
         return {k: _to_cuda(v) for k,v in elements.items()}
     return _to_cuda(elements)
+
+def to_cpu(elements):
+    if isinstance(elements, tuple) or isinstance(elements, list):
+        return [x.cpu() for x in elements]
+    if isinstance(elements, dict):
+        return {k: v.cpu() for k,v in elements.items()}
+    return elements.cpu()
 
 
 def get_device() -> torch.device:
@@ -325,3 +322,56 @@ def im2torch(im, cuda=False, to_float=True):
     if to_float:
         assert image.min() >= 0.0 and image.max() <= 1.0
     return image
+
+
+def num_parameters(model: torch.nn.Module):
+    return sum(np.prod(p.shape) for p in model.parameters())
+
+
+
+
+try:
+    symbolic_assert = torch._assert # 1.8
+except AttributeError:
+    symbolic_assert = torch.Assert # 1.7.0
+
+
+def assert_shape(tensor: torch.Tensor, ref_shape):
+    """
+        Assert that the shape of a tensor matches the given list of integers.
+        None indicates that the size of a dimension is allowed to vary.
+        Performs symbolic assertion when used in torch.jit.trace().
+        Function adapted from: https://www.github.com/nvlabs/stylegan3
+    """
+    if tensor.ndim != len(ref_shape):
+        raise AssertionError(f'Wrong number of dimensions: got {tensor.ndim}, expected {len(ref_shape)}')
+    for idx, (size, ref_size) in enumerate(zip(tensor.shape, ref_shape)):
+        if ref_size is None:
+            pass
+        elif isinstance(ref_size, torch.Tensor):
+            with suppress_tracer_warnings(): # as_tensor results are registered as constants
+                symbolic_assert(torch.equal(torch.as_tensor(size), ref_size), f'Wrong size for dimension {idx}')
+        elif isinstance(size, torch.Tensor):
+            with suppress_tracer_warnings(): # as_tensor results are registered as constants
+                symbolic_assert(torch.equal(size, torch.as_tensor(ref_size)), f'Wrong size for dimension {idx}: expected {ref_size}')
+        elif size != ref_size:
+            raise AssertionError(f'Wrong size for dimension {idx}: got {size}, expected {ref_size}')
+
+
+
+class suppress_tracer_warnings(warnings.catch_warnings):
+    """
+        Context manager to suppress known warnings in torch.jit.trace().
+    """
+    def __enter__(self):
+        super().__enter__()
+        warnings.simplefilter('ignore', category=torch.jit.TracerWarning)
+        return self
+
+
+def zero_grad(model):
+    """
+    Reduce overhead of optimizer.zero_grad (read+write).
+    """
+    for param in model.parameters():
+        param.grad = None

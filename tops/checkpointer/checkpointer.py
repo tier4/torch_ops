@@ -1,10 +1,12 @@
 import os
 import torch
 import pathlib
+from easydict import EasyDict
 from ..logger import global_step, log
+from ..logger.logger import _write_metadata
 from typing import List, Optional
 from argparse import ArgumentError
-from ..utils.torch_utils import get_device
+from ..utils.torch_utils import get_device, rank
 
 _checkpoint_dir = None
 _models = None
@@ -18,6 +20,9 @@ def load_checkpoint(
         checkpoint_path: Optional[os.PathLike] = None,
         load_best: bool = False,
         map_location=None) -> dict:
+    """
+        checkpoint_path has to be a directory path, filepath. If none, tops has to be initialized (tops.init).
+    """
     if map_location is None:
         map_location = get_device()
     if checkpoint_path is None:
@@ -25,7 +30,7 @@ def load_checkpoint(
         if _checkpoint_dir is None:
             raise ArgumentError(
                 "Both the provided checkpoint_path and global checkpoint_dir is None." +
-                "You have to initialize mlops or provide a checkpoint.")
+                "You have to initialize tops or provide a checkpoint.")
     checkpoint_path = pathlib.Path(checkpoint_path)
     if checkpoint_path.is_file():
         ckpt = torch.load(checkpoint_path, map_location=map_location)
@@ -65,6 +70,8 @@ def save_checkpoint(
     Args:
         checkpoint_path: path to file or folder.
     """
+    if rank() != 0:
+        return
     if checkpoint_dir is None:
         assert _checkpoint_dir is not None
         checkpoint_dir = _checkpoint_dir
@@ -94,6 +101,8 @@ def has_checkpoint(checkpoint_dir: Optional[os.PathLike] = None) -> bool:
 def register_models(models: dict):
     global _models
     for key, model in models.items():
+        if isinstance(model, (dict, EasyDict)):
+            continue
         if not hasattr(model, "state_dict"):
             raise ArgumentError("The model has to have a state_dict")
         if not hasattr(model, "load_state_dict"):
@@ -103,16 +112,31 @@ def register_models(models: dict):
 
 def save_registered_models(other_state: dict = None, **kwargs):
     assert _models is not None
-    state_dict = {key: model.state_dict() for key, model in _models.items()}
+    state_dict = {}
+    for key, model in _models.items():
+        if isinstance(model, (dict, EasyDict)):
+            state_dict[key] = model
+        elif isinstance(model, torch.nn.parallel.DistributedDataParallel):
+            state_dict[key] = model.module.state_dict()
+        else:
+            state_dict[key] = model.state_dict()
     if other_state:
         assert all(key not in state_dict for key in other_state)
         state_dict.update(other_state)
     save_checkpoint(state_dict, **kwargs)
+    _write_metadata()
+
 
 def load_registered_models(**kwargs):
     assert _models is not None
     state_dict = load_checkpoint(**kwargs)
     for key, state in state_dict.items():
         if key in _models:
-            _models[key].load_state_dict(state)
+            if isinstance(_models[key], (dict, EasyDict)):
+                _models[key].update(state)
+            else:
+                if isinstance(_models[key], torch.nn.parallel.DistributedDataParallel):
+                    _models[key].load_state_dict(_models[key].module)
+                else:
+                    _models[key].load_state_dict(state)
     return {k: v for k,v in state_dict.items() if key not in _models}

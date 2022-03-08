@@ -232,6 +232,7 @@ class LazyConfig:
                     },
                     flags={"allow_objects": True},
                 )
+            ret.filename = filename
             return ret
 
     @staticmethod

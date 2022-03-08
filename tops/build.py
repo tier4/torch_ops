@@ -8,14 +8,20 @@ from .utils.git_diff import dump_git_diff
 
 def init(
         output_dir,
-        logging_backend=["stdout", "json", "tensorboard"],
+        logging_backend=["stdout", "json", "tensorboard", "image_dumper"],
+        experiment_name=None,
+        project=None,
+        cfg=None,
+        reinit=None,
         checkpoint_dir: Optional[PathLike] = None
     ):
     """
     """
     output_dir = Path(output_dir)
     output_dir.mkdir(exist_ok=True, parents=True)
-    _init_logger(output_dir.joinpath("logs"), logging_backend)
+    _init_logger(
+        output_dir.joinpath("logs"), logging_backend,
+        experiment_name, project, cfg, reinit)
     if checkpoint_dir is None:
         checkpoint_dir = output_dir.joinpath("checkpoints")
     init_checkpointer(checkpoint_dir)
