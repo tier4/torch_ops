@@ -136,7 +136,7 @@ def load_registered_models(**kwargs):
                 _models[key].update(state)
             else:
                 if isinstance(_models[key], torch.nn.parallel.DistributedDataParallel):
-                    _models[key].load_state_dict(_models[key].module)
+                    _models[key].module.load_state_dict(state)
                 else:
                     _models[key].load_state_dict(state)
     return {k: v for k,v in state_dict.items() if key not in _models}
