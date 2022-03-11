@@ -122,7 +122,7 @@ class ImageDumper(Backend):
         self.image_dir = image_dir
 
     def add_image(self, tag, im: np.ndarray, **kwargs):
-        self.image_dir.mkdir(exist_ok=True, parents=True)
+        self.image_dir.joinpath(tag).mkdir(exist_ok=True, parents=True)
         impath = self.image_dir.joinpath(tag, f"{_global_step}.png")
         Image.fromarray(im).save(impath)
 
@@ -191,7 +191,7 @@ class WandbBackend(Backend):
         wandb.log(dictionary, commit=commit)
 
     def add_image(self, tag, im: np.ndarray, **kwargs):
-        wandb.log({tag: wandb.Image(im), "global_step": _global_step}, *args, **kwargs)
+        wandb.log({tag: wandb.Image(im), "global_step": _global_step}, **kwargs)
 
     def finish(self):
         self.run.finish()
@@ -301,7 +301,7 @@ def add_images(
         if images.ndim == 4:
             images = images.permute(0, 2, 3, 1).contiguous().numpy()
             images = np_make_image_grid(images, nrow)
-        if images.ndim == 3:
+        elif images.ndim == 3:
             images = images.permute(1, 2, 0).contiguous().numpy()
     assert images.ndim == 3
     assert images.dtype == np.uint8
