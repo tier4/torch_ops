@@ -1,3 +1,5 @@
+import pathlib
+import validators
 import torch
 import os
 import errno
@@ -65,3 +67,12 @@ def is_image(impath: Path):
 
 def is_video(impath: Path):
     return impath.suffix.lower() in [".mp4", ".webm", ".avi"]
+
+
+def load_file_or_url(path: str, map_location=None):
+    filepath = pathlib.Path(path)
+    if filepath.is_file():
+        return torch.load(path, map_location=map_location)
+    validators.url(path)
+    filepath = download_file(path)
+    return torch.load(path, map_location=map_location)

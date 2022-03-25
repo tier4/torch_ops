@@ -8,6 +8,7 @@ setup(
     install_requires=[
         "cloudpickle",
         "omegaconf",
-        "easydict"
+        "easydict",
+        "validators"
     ],
 )
