@@ -209,6 +209,7 @@ def init(
         cfg=None, # Only required for wandb logging
         reinit=False
         ):
+    _resume()
     if rank() != 0:
         return
     global _backends, _output_dir
@@ -217,7 +218,6 @@ def init(
     output_dir = Path(output_dir)
     output_dir.mkdir(exist_ok=True, parents=True)
     _output_dir = output_dir
-    _resume()
     _write_metadata()
     _backends = []
     for backend in backends:
