@@ -130,15 +130,17 @@ class ImageDumper(Backend):
 class JSONBackend(Backend):
 
     def __init__(self, filepath: Path) -> None:
+        self.filepath = filepath
         self.file = open(filepath, "a")
         self.closed = False
     
     def add_scalar(self, tag, value, **kwargs):
-        json.dump({tag: value, "global_step": _global_step}, self.file)
+        self.add_dict({tag: value})
     
     def add_dict(self, values, **kwargs):
-        values["global_step"] = _global_step
-        json.dump(values, self.file)
+        values = {**values, "global_step": _global_step}
+        value_str = json.dumps(values) + "\n"
+        self.file.write(value_str)
     
     def finish(self):
         if self.closed:
@@ -352,3 +354,19 @@ def epoch():
 
 def global_step():
     return _global_step
+
+
+def get_scalars(tag, json_path=None):
+    if json_path is None:
+        if not any(isinstance(b, JSONBackend) for b  in _backends):
+            raise Exception(
+                "get_scalars currently only supports a JSONBackend.\
+                Note that logger.init() has to be called before retrieving scalars.")
+        backend = [b for b in _backends if isinstance(b, JSONBackend)][0]
+        json_path = backend.filepath
+    with open(json_path, "r") as fp:
+        data = json.load(fp)
+    data = [x for x in data if tag in x]
+    global_step = [x["global_step"] for x in data]
+    values = [x[tag] for x in data]
+    return global_step, values
