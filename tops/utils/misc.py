@@ -1,5 +1,7 @@
 import numpy as np
-
+import sys
+import os
+from contextlib import contextmanager
 
 def np_make_image_grid(images, nrow, pad=2, row_major=True, pad_value=0):
     height, width = images[0].shape[:2]
@@ -31,3 +33,14 @@ def np_make_image_grid(images, nrow, pad=2, row_major=True, pad_value=0):
             cend = col * (pad[1] + width) + width
             im_result[rstart:rend, cstart:cend, :] = im
     return im_result
+
+
+
+@contextmanager
+def capture_stdout():
+    try:
+        old_stdout = sys.stdout # backup current stdout
+        sys.stdout = open(os.devnull, "w")
+        yield
+    finally:
+        sys.stdout = old_stdout

@@ -7,7 +7,7 @@ from .utils.torch_utils import (
     assert_shape, suppress_tracer_warnings, timeit, to_cpu,
 )
 from .utils.dist_utils import world_size, gather_tensors, all_reduce, rank, ddp_sync
-from .utils.misc import np_make_image_grid
+from .utils.misc import np_make_image_grid, capture_stdout
 from .utils.file_util import (
     is_image, is_video, download_file, load_file_or_url
 )
