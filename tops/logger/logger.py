@@ -401,12 +401,16 @@ def get_scalars(tag, json_path=None, n_smoothing=1):
 @contextmanager
 def capture_log_stdout():
     try:
+        b = None
         for backend in _backends:
             if not isinstance(backend, StdOutBackend):
                 continue
+            b = backend
             old_level = backend.rootLogger.getEffectiveLevel()
             backend.rootLogger.setLevel(logging.CRITICAL)
+            break
         yield
     finally:
-        backend.rootLogger.setLevel(old_level)
+        if b is not None:
+            b.rootLogger.setLevel(old_level)
         
