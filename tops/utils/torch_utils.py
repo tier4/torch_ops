@@ -162,6 +162,8 @@ def print_module_summary(module, inputs, max_nesting=3, skip_redundant=True):
 
     # Print table.
     widths = [max(len(cell) for cell in column) for column in zip(*rows)]
+    if rank() != 1:
+        return
     print()
     for row in rows:
         print('  '.join(cell + ' ' * (width - len(cell)) for cell, width in zip(row, widths)))
