@@ -368,7 +368,7 @@ def global_step():
     return _global_step
 
 
-def get_scalars(tag, json_path=None, n_smoothing=1):
+def get_scalars(tag, json_path=None, n_smoothing=1, smooth_fnc=np.mean):
     """
         n_smoothing > 1 will return the mean for every nth example
     """
@@ -393,7 +393,7 @@ def get_scalars(tag, json_path=None, n_smoothing=1):
     
     global_step = [x["global_step"] for x in data_points]
     values = [x[tag] for x in data_points]
-    values = [np.mean(values[i:i+n_smoothing]) for i in range(n_smoothing-1, len(values), n_smoothing)]
+    values = [smooth_fnc(values[i:i+n_smoothing]) for i in range(n_smoothing-1, len(values), n_smoothing)]
     global_step = [global_step[i] for i in range(n_smoothing-1, len(global_step), n_smoothing)]
     return values, global_step
 
