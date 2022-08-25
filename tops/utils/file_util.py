@@ -75,4 +75,4 @@ def load_file_or_url(path: str, map_location=None):
         return torch.load(path, map_location=map_location)
     validators.url(path)
     filepath = download_file(path)
-    return torch.load(path, map_location=map_location)
+    return torch.load(filepath, map_location=map_location)
