@@ -216,9 +216,10 @@ def init(
     output_dir = Path(output_dir)
     output_dir.mkdir(exist_ok=True, parents=True)
     _output_dir = output_dir
-    _resume()
+
     if rank() != 0:
         return
+    _resume()
     _write_metadata()
     _backends = []
     for backend in backends:
