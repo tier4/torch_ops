@@ -6,7 +6,6 @@ import logging
 from contextlib import contextmanager
 import torch
 import numpy as np
-
 try:
     import wandb
 except:
@@ -16,7 +15,7 @@ from argparse import ArgumentError
 from pathlib import Path
 from typing import List, Union
 from torch.utils import tensorboard
-from .. import np_make_image_grid, rank
+from .. import np_make_image_grid, rank, world_size
 from PIL import Image
 
 _global_step = 0
@@ -216,10 +215,10 @@ def init(
     output_dir = Path(output_dir)
     output_dir.mkdir(exist_ok=True, parents=True)
     _output_dir = output_dir
-
+    _resume()
     if rank() != 0:
         return
-    _resume()
+    
     _write_metadata()
     _backends = []
     for backend in backends:
@@ -354,6 +353,8 @@ def _resume():
     global _epoch, _global_step
     metadata_path = _output_dir.joinpath("metadata.json")
     if not metadata_path.is_file():
+        if world_size() > 1: # Let all DDP processes check for file if it does not exist. If not, one process can read the metadata file created by rank 1.
+            torch.distributed.barrier()
         return
     with open(metadata_path, "r") as fp:
         data = json.load(fp)
