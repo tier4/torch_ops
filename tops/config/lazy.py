@@ -1,6 +1,7 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
 import ast
 import builtins
+from functools import partial
 import importlib
 import inspect
 import logging
@@ -388,8 +389,20 @@ class LazyConfig:
                     )
                     + "}"
                 )
+            elif isinstance(obj, partial):
+                if len(obj.args) > 0:
+                    args = _to_str(obj.args).replace("\n", ", ")
+                else:
+                    args = ""
+                if len(obj.keywords) > 0:
+                    kwargs = _to_str(obj.keywords).replace("\n", ", ")
+                else:
+                    kwargs = ""
+                return f"functools.partial({obj.func.__name__}, " + args + kwargs + ")"
             elif isinstance(obj, list):
                 return "[" + ",".join(_to_str(x, inside_call=inside_call) for x in obj) + "]"
+            elif callable(obj):
+                return obj.__name__
             else:
                 return repr(obj)
 
