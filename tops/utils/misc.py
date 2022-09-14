@@ -44,3 +44,16 @@ def capture_stdout():
         yield
     finally:
         sys.stdout = old_stdout
+
+
+def highlight_py_str(code):
+    # From https://github.com/facebookresearch/detectron2/blob/0703e08a5f589f7503a3fbfce41309c80204eec8/detectron2/engine/defaults.py#L160
+    try:
+        import pygments
+    except ImportError:
+        return code
+    from pygments.lexers import Python3Lexer
+    from pygments.formatters import Terminal256Formatter
+
+    code = pygments.highlight(code, Python3Lexer(), Terminal256Formatter(style="monokai"))
+    return code
