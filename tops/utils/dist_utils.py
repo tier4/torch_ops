@@ -33,17 +33,16 @@ def all_gather_uneven(x):
         return x
     device = torch.device(f"cuda:{rank()}")
 
-    local_size = torch.tensor(x.size(), device=device)
-    all_sizes = [torch.zeros_like(local_size) for _ in range(ws)]
+    local_size = torch.tensor([x.shape[0]], device=device)
+    all_sizes = [torch.zeros_like(local_size) for _ in range(world_size())]
     dist.all_gather(all_sizes, local_size)
-
     max_size = max(all_sizes)
     size_diff = max_size.item() - local_size.item()
     if size_diff:
-        padding = torch.zeros(size_diff, device=device, dtype=x.dtype)
+        padding = torch.zeros((size_diff, *x.shape[1:]), device=device, dtype=x.dtype)
         x = torch.cat((x, padding))
 
-    all_xs_padded = [torch.zeros_like(x) for _ in range(ws)]
+    all_xs_padded = [torch.zeros_like(x) for _ in range(world_size())]
     dist.all_gather(all_xs_padded, x)
 
     all_xs = []
