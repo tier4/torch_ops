@@ -210,7 +210,8 @@ class DataPrefetcher:
         with cuda_stream_wrap(self.stream):
             if isinstance(self.batch, dict):
                 for key, item in self.batch.items():
-                    self.batch[key] = to_cuda(item).float()
+                    if isinstance(item, torch.Tensor):
+                        self.batch[key] = to_cuda(item).float()
             if isinstance(self.batch, (tuple)):
                 self.batch = tuple(to_cuda(x) for x in self.batch)
             self.batch = self.image_gpu_transform(self.batch)
