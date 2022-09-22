@@ -28,6 +28,29 @@ def gather_tensors(tensor, async_op=False):
     return torch.cat(output)
 
 
+def all_gather_uneven(x):
+    if world_size() <= 1:
+        return x
+    device = torch.device(f"cuda:{rank()}")
+
+    local_size = torch.tensor(x.size(), device=device)
+    all_sizes = [torch.zeros_like(local_size) for _ in range(ws)]
+    dist.all_gather(all_sizes, local_size)
+
+    max_size = max(all_sizes)
+    size_diff = max_size.item() - local_size.item()
+    if size_diff:
+        padding = torch.zeros(size_diff, device=device, dtype=x.dtype)
+        x = torch.cat((x, padding))
+
+    all_xs_padded = [torch.zeros_like(x) for _ in range(ws)]
+    dist.all_gather(all_xs_padded, x)
+
+    all_xs = []
+    for x, size in zip(all_xs_padded, all_sizes):
+        all_xs.append(x[:size])
+    return torch.cat(all_xs)
+
 
 def rank():
     if torch.distributed.is_available() and torch.distributed.is_initialized():
