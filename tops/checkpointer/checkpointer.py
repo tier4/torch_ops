@@ -81,6 +81,9 @@ def save_checkpoint(
         torch.save(state_dict, checkpoint_dir.joinpath("best_model.ckpt"))
         log(f"Saved model to: {checkpoint_dir.joinpath('best_model.ckpt')}" )
     checkpoint_path = checkpoint_dir.joinpath(f"{global_step()}.ckpt")
+    if checkpoint_path.is_file():
+        log(f"Checkpoint already exists: {checkpoint_path}.")
+        return
     torch.save(state_dict, checkpoint_path)
     log(f"Saved model to: {checkpoint_path}")
     if len(previous_checkpoint_paths) > max_keep:
