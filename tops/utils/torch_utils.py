@@ -93,7 +93,6 @@ def timeit(desc):
         print(f"({desc}) total time: {time() - t0:.1f}")
 
 
-
 def print_module_summary(module, inputs, max_nesting=3, skip_redundant=True):
     # Adapted from: https://github.com/NVlabs/stylegan3
     assert isinstance(module, torch.nn.Module)
@@ -128,6 +127,7 @@ def print_module_summary(module, inputs, max_nesting=3, skip_redundant=True):
         e.unique_params = [t for t in e.mod.parameters() if id(t) not in tensors_seen]
         e.unique_buffers = [t for t in e.mod.buffers() if id(t) not in tensors_seen]
         e.unique_outputs = [t for t in e.outputs if id(t) not in tensors_seen]
+        e.requires_grad = [t.requires_grad for t in e.mod.parameters() if id(t) not in tensors_seen]
         tensors_seen |= {id(t) for t in e.unique_params + e.unique_buffers + e.unique_outputs}
 
     # Filter out redundant entries.
@@ -135,7 +135,7 @@ def print_module_summary(module, inputs, max_nesting=3, skip_redundant=True):
         entries = [e for e in entries if len(e.unique_params) or len(e.unique_buffers) or len(e.unique_outputs)]
 
     # Construct table.
-    rows = [[type(module).__name__, 'Parameters', 'Buffers', 'Output shape', 'Datatype']]
+    rows = [[type(module).__name__, 'Parameters', 'Buffers', 'Output shape', 'Datatype', "requires grad"]]
     rows += [['---'] * len(rows[0])]
     param_total = 0
     buffer_total = 0
@@ -144,6 +144,7 @@ def print_module_summary(module, inputs, max_nesting=3, skip_redundant=True):
         name = '<top-level>' if e.mod is module else submodule_names[e.mod]
         param_size = sum(t.numel() for t in e.unique_params)
         buffer_size = sum(t.numel() for t in e.unique_buffers)
+        requires_grad = any(e.requires_grad) if param_size != 0 else "-"
         output_shapes = [str(list(e.outputs[0].shape)) for t in e.outputs]
         output_dtypes = [str(t.dtype).split('.')[-1] for t in e.outputs]
         rows += [[
@@ -152,13 +153,14 @@ def print_module_summary(module, inputs, max_nesting=3, skip_redundant=True):
             str(buffer_size) if buffer_size else '-',
             (output_shapes + ['-'])[0],
             (output_dtypes + ['-'])[0],
+            str(requires_grad)
         ]]
         for idx in range(1, len(e.outputs)):
             rows += [[name + f':{idx}', '-', '-', output_shapes[idx], output_dtypes[idx]]]
         param_total += param_size
         buffer_total += buffer_size
     rows += [['---'] * len(rows[0])]
-    rows += [['Total', str(param_total), str(buffer_total), '-', '-']]
+    rows += [['Total', str(param_total), str(buffer_total), '-', '-', "-"]]
 
     # Print table.
     widths = [max(len(cell) for cell in column) for column in zip(*rows)]
@@ -169,7 +171,6 @@ def print_module_summary(module, inputs, max_nesting=3, skip_redundant=True):
         print('  '.join(cell + ' ' * (width - len(cell)) for cell, width in zip(row, widths)))
     print()
     return outputs
-
 
 def cuda_stream_wrap(stream):
     if torch.cuda.is_available():
