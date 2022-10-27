@@ -193,7 +193,8 @@ class DataPrefetcher:
     def __init__(self,
                  loader: torch.utils.data.DataLoader,
                  gpu_transform: torch.nn.Module,
-                 channels_last=False
+                 channels_last=False,
+                 to_float=True,
                  ):
         self.original_loader = loader
         self.stream = None
@@ -202,6 +203,7 @@ class DataPrefetcher:
         self.loader = iter(self.original_loader)
         self.image_gpu_transform = gpu_transform
         self.channels_last = channels_last
+        self.to_float = to_float
 
     @torch.no_grad()
     def _preload(self):
@@ -218,7 +220,9 @@ class DataPrefetcher:
                         memory_format = None
                         if item.ndim == 4 and self.channels_last:
                             memory_format = torch.channels_last
-                        self.batch[key] = self.batch[key].to(device=get_device(), memory_format=memory_format, non_blocking=True).float() 
+                        self.batch[key] = self.batch[key].to(device=get_device(), memory_format=memory_format, non_blocking=True)
+                        if self.to_float:
+                            self.batch[key] = self.batch[key].float()
             if isinstance(self.batch, (tuple)):
                 self.batch = tuple(to_cuda(x) for x in self.batch)
             self.batch = self.image_gpu_transform(self.batch)
