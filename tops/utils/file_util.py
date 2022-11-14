@@ -7,6 +7,7 @@ import sys
 import warnings
 from urllib.parse import urlparse
 from pathlib import Path
+from hashlib import md5
 
 
 def download_file(url, progress=True, check_hash=False, file_name=None, subdir=None):
@@ -69,10 +70,15 @@ def is_video(impath: Path):
     return impath.suffix.lower() in [".mp4", ".webm", ".avi"]
 
 
-def load_file_or_url(path: str, map_location=None):
+def load_file_or_url(path: str, map_location=None, md5sum: str = None):
     filepath = pathlib.Path(path)
     if filepath.is_file():
         return torch.load(path, map_location=map_location)
     validators.url(path)
     filepath = download_file(path)
+    if md5sum is not None:
+        with open(filepath, "rb") as fp:
+            cur_md5sum = md5(fp.read()).hexdigest()
+        assert md5sum == cur_md5sum, \
+            f"The downloaded file does not match the given md5sum. Downloaded file md5: {cur_md5sum}, expected: {md5sum}"
     return torch.load(filepath, map_location=map_location)
