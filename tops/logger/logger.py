@@ -218,8 +218,7 @@ def init(
     _resume()
     if rank() != 0:
         return
-    
-    _write_metadata()
+
     _backends = []
     for backend in backends:
         if backend not in supported_backends:
@@ -344,8 +343,9 @@ def step_epoch():
 def _write_metadata():
     if rank() != 0:
         return
-    with open(_output_dir.joinpath("metadata.json"), "w") as fp:
+    with open(_output_dir.joinpath("metadata.json.tmp"), "w") as fp:
         json.dump(dict(global_step=_global_step, epoch=_epoch), fp)
+    _output_dir.joinpath("metadata.json.tmp").rename(_output_dir.joinpath("metadata.json"))
     log("Metadata write done.")
 
 
@@ -353,8 +353,6 @@ def _resume():
     global _epoch, _global_step
     metadata_path = _output_dir.joinpath("metadata.json")
     if not metadata_path.is_file():
-        if world_size() > 1: # Let all DDP processes check for file if it does not exist. If not, one process can read the metadata file created by rank 1.
-            torch.distributed.barrier()
         return
     with open(metadata_path, "r") as fp:
         data = json.load(fp)
