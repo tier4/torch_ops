@@ -36,9 +36,9 @@ def to_cuda(elements):
 
 def to_cpu(elements):
     if isinstance(elements, tuple) or isinstance(elements, list):
-        return [x.cpu() for x in elements]
+        return [to_cpu(x) for x in elements]
     if isinstance(elements, dict):
-        return {k: v.cpu() for k,v in elements.items()}
+        return {k: to_cpu(v) for k,v in elements.items()}
     return elements.cpu()
 
 
