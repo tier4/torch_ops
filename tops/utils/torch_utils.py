@@ -302,11 +302,10 @@ def im2numpy(images, to_uint8=False):
     if len(images.shape) == 3:
         single_image = True
         images = images[None]
-    images = images.detach().cpu().numpy()
+    if to_uint8:
+        images = images.mul(255).round().clamp(0,255).detach().cpu().numpy()
 
     images = np.moveaxis(images, 1, -1)
-    if to_uint8:
-        images = (images * 255).astype(np.uint8)
     if single_image:
         return images[0]
     return images
