@@ -313,7 +313,8 @@ def im2numpy(images, to_uint8=False):
         single_image = True
         images = images[None]
     if to_uint8:
-        images = images.mul(255).round().clamp(0,255).detach().cpu().numpy()
+        images = images.mul(255).round().clamp(0,255).byte()
+    images = images.detach().cpu().numpy()
 
     images = np.moveaxis(images, 1, -1)
     if single_image:
