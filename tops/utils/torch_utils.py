@@ -36,9 +36,9 @@ def to_cuda(elements):
 
 def to_cpu(elements):
     if isinstance(elements, tuple) or isinstance(elements, list):
-        return [x.cpu() for x in elements]
+        return [to_cpu(x) for x in elements]
     if isinstance(elements, dict):
-        return {k: v.cpu() for k,v in elements.items()}
+        return {k: to_cpu(v) for k,v in elements.items()}
     return elements.cpu()
 
 
@@ -223,6 +223,16 @@ class DataPrefetcher:
                         self.batch[key] = self.batch[key].to(device=get_device(), memory_format=memory_format, non_blocking=True)
                         if self.to_float:
                             self.batch[key] = self.batch[key].float()
+                    if isinstance(item, dict):
+                        for k, v in item.items():
+                            if not isinstance(v, torch.Tensor):
+                                continue
+                            memory_format = None
+                            if v.ndim == 4 and self.channels_last:
+                                memory_format = torch.channels_last
+                            item[k] = item[k].to(device=get_device(), memory_format=memory_format, non_blocking=True)
+                            if self.to_float:
+                                item[k] = item[k].float()
             if isinstance(self.batch, (tuple)):
                 self.batch = tuple(to_cuda(x) for x in self.batch)
             self.batch = self.image_gpu_transform(self.batch)
