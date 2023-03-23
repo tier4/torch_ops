@@ -72,6 +72,8 @@ def is_video(impath: Path):
 
 def load_file_or_url(path: str, map_location=None, md5sum: str = None):
     filepath = pathlib.Path(path)
+    if not torch.cuda.is_available():
+        map_location = torch.device("cpu")
     if filepath.is_file():
         return torch.load(path, map_location=map_location)
     validators.url(path)
