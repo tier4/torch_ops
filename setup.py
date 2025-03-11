@@ -14,6 +14,6 @@ setup(
         "tqdm",
         "Pillow",
         "tensorboard",
-        "yaml",
+        "pyyaml",
     ],
 )
