@@ -8,13 +8,10 @@ from .utils.file_util import download_file, load_file_or_url
 from .utils.misc import capture_stdout, np_make_image_grid
 from .utils.torch_utils import (
     AMP,
-    DataPrefetcher,
-    InfiniteSampler,
     assert_shape,
     get_device,
     im2numpy,
     im2torch,
-    num_parameters,
     print_module_summary,
     set_AMP,
     set_seed,
@@ -22,5 +19,4 @@ from .utils.torch_utils import (
     timeit,
     to_cpu,
     to_cuda,
-    zero_grad,
 )

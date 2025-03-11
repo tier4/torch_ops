@@ -64,14 +64,6 @@ def get_seed():
     return _seed
 
 
-def zero_grad(model):
-    """
-    Reduce overhead of optimizer.zero_grad (read+write).
-    """
-    for param in model.parameters():
-        param.grad = None
-
-
 def set_requires_grad(module: torch.nn.Module, requires_grad: bool):
     for p in module.parameters():
         p.requires_grad = requires_grad
@@ -223,131 +215,6 @@ def cuda_stream_wrap(stream):
     return placeholder(stream)
 
 
-class DataPrefetcher:
-    """
-    A dataloader wrapper to prefetch batches to GPU memory.
-    """
-
-    def __init__(
-        self,
-        loader: torch.utils.data.DataLoader,
-        gpu_transform: torch.nn.Module,
-        channels_last=False,
-        to_float=True,
-    ):
-        self.original_loader = loader
-        self.stream = None
-        if torch.cuda.is_available():
-            self.stream = torch.cuda.Stream(device=get_device())
-        self.loader = iter(self.original_loader)
-        self.image_gpu_transform = gpu_transform
-        self.channels_last = channels_last
-        self.to_float = to_float
-
-    @torch.no_grad()
-    def _preload(self):
-        try:
-            self.batch = next(self.loader)
-            self.stop_iteration = False
-        except StopIteration:
-            self.stop_iteration = True
-            return
-        with cuda_stream_wrap(self.stream):
-            if isinstance(self.batch, dict):
-                for key, item in self.batch.items():
-                    if isinstance(item, torch.Tensor):
-                        memory_format = None
-                        if item.ndim == 4 and self.channels_last:
-                            memory_format = torch.channels_last
-                        self.batch[key] = self.batch[key].to(
-                            device=get_device(),
-                            memory_format=memory_format,
-                            non_blocking=True,
-                        )
-                        if self.to_float:
-                            self.batch[key] = self.batch[key].float()
-                    if isinstance(item, dict):
-                        for k, v in item.items():
-                            if not isinstance(v, torch.Tensor):
-                                continue
-                            memory_format = None
-                            if v.ndim == 4 and self.channels_last:
-                                memory_format = torch.channels_last
-                            item[k] = item[k].to(
-                                device=get_device(),
-                                memory_format=memory_format,
-                                non_blocking=True,
-                            )
-                            if self.to_float:
-                                item[k] = item[k].float()
-            if isinstance(self.batch, (tuple)):
-                self.batch = tuple(to_cuda(x) for x in self.batch)
-            self.batch = self.image_gpu_transform(self.batch)
-
-    def __len__(self):
-        return len(self.original_loader)
-
-    def __next__(self):
-        return self.next()
-
-    def next(self):
-        if torch.cuda.is_available():
-            torch.cuda.current_stream(device=get_device()).wait_stream(self.stream)
-        if self.stop_iteration:
-            raise StopIteration
-        container = self.batch
-        self._preload()
-        return container
-
-    def __iter__(self):
-        self.loader = iter(self.original_loader)
-        self._preload()
-        return self
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self.original_loader, name)
-
-
-# ----------------------------------------------------------------------------
-# Sampler for torch.utils.data.DataLoader that loops over the dataset
-# indefinitely, shuffling items as it goes.
-# From https://github.com/NVlabs/stylegan2-ada-pytorch/blob/main/torch_utils/misc.py
-
-
-class InfiniteSampler(torch.utils.data.Sampler):
-    def __init__(self, dataset, rank=0, num_replicas=1, shuffle=True, window_size=0.5):
-        assert len(dataset) > 0
-        assert num_replicas > 0
-        assert 0 <= rank < num_replicas
-        assert 0 <= window_size <= 1
-        super().__init__(dataset)
-        self.dataset = dataset
-        self.rank = rank
-        self.num_replicas = num_replicas
-        self.shuffle = shuffle
-        self.seed = get_seed()
-        self.window_size = window_size
-
-    def __iter__(self):
-        order = np.arange(len(self.dataset))
-        rnd = None
-        window = 0
-        if self.shuffle:
-            rnd = np.random.RandomState(self.seed)
-            rnd.shuffle(order)
-            window = int(np.rint(order.size * self.window_size))
-
-        idx = 0
-        while True:
-            i = idx % order.size
-            if idx % self.num_replicas == self.rank:
-                yield order[i]
-            if window >= 2:
-                j = (i - rnd.randint(window)) % order.size
-                order[i], order[j] = order[j], order[i]
-            idx += 1
-
-
 @torch.no_grad()
 def im2numpy(images, to_uint8=False):
     """
@@ -393,10 +260,6 @@ def im2torch(im, cuda=False, to_float=True):
     if to_float:
         assert image.min() >= 0.0 and image.max() <= 1.0
     return image
-
-
-def num_parameters(model: torch.nn.Module):
-    return sum(np.prod(p.shape) for p in model.parameters())
 
 
 try:
@@ -450,11 +313,3 @@ class suppress_tracer_warnings(warnings.catch_warnings):
         super().__enter__()
         warnings.simplefilter("ignore", category=torch.jit.TracerWarning)
         return self
-
-
-def zero_grad(model):
-    """
-    Reduce overhead of optimizer.zero_grad (read+write).
-    """
-    for param in model.parameters():
-        param.grad = None
