@@ -1,25 +1,26 @@
 import random
+import warnings
+from contextlib import contextmanager
+from time import time
+from typing import Any
+
 import numpy as np
 import torch
 import tqdm
-import torch
-import warnings
-from typing import Any
-from contextlib import contextmanager
-from time import time
 from easydict import EasyDict
-from .dist_utils import rank
+
+from tops.utils.dist_utils import rank
 
 AMP_enabled = False
 _seed = 0
 
 
-def set_AMP(value: bool):
+def set_AMP(value: bool) -> None:
     global AMP_enabled
     AMP_enabled = value
 
 
-def AMP():
+def AMP() -> bool:
     return AMP_enabled
 
 
@@ -31,19 +32,24 @@ def to_cuda(elements):
     if isinstance(elements, tuple) or isinstance(elements, list):
         return [_to_cuda(x) for x in elements]
     if isinstance(elements, dict):
-        return {k: _to_cuda(v) for k,v in elements.items()}
+        return {k: _to_cuda(v) for k, v in elements.items()}
     return _to_cuda(elements)
+
 
 def to_cpu(elements):
     if isinstance(elements, tuple) or isinstance(elements, list):
         return [to_cpu(x) for x in elements]
     if isinstance(elements, dict):
-        return {k: to_cpu(v) for k,v in elements.items()}
+        return {k: to_cpu(v) for k, v in elements.items()}
     return elements.cpu()
 
 
 def get_device() -> torch.device:
-    return torch.device(f"cuda:{rank()}") if torch.cuda.is_available() else torch.device("cpu")
+    return (
+        torch.device(f"cuda:{rank()}")
+        if torch.cuda.is_available()
+        else torch.device("cpu")
+    )
 
 
 def set_seed(seed: int):
@@ -53,9 +59,9 @@ def set_seed(seed: int):
     np.random.seed(seed)
     random.seed(seed)
 
+
 def get_seed():
     return _seed
-
 
 
 def zero_grad(model):
@@ -64,6 +70,7 @@ def zero_grad(model):
     """
     for param in model.parameters():
         param.grad = None
+
 
 def set_requires_grad(module: torch.nn.Module, requires_grad: bool):
     for p in module.parameters():
@@ -101,14 +108,17 @@ def print_module_summary(module, inputs, max_nesting=3, skip_redundant=True):
     # Register hooks.
     entries = []
     nesting = [0]
+
     def pre_hook(_mod, _inputs):
         nesting[0] += 1
+
     def post_hook(mod, _inputs, outputs):
         nesting[0] -= 1
         if nesting[0] <= max_nesting:
             outputs = list(outputs) if isinstance(outputs, (tuple, list)) else [outputs]
             outputs = [t for t in outputs if isinstance(t, torch.Tensor)]
             entries.append(EasyDict(mod=mod, outputs=outputs))
+
     hooks = [mod.register_forward_pre_hook(pre_hook) for mod in module.modules()]
     hooks += [mod.register_forward_hook(post_hook) for mod in module.modules()]
 
@@ -127,50 +137,77 @@ def print_module_summary(module, inputs, max_nesting=3, skip_redundant=True):
         e.unique_params = [t for t in e.mod.parameters() if id(t) not in tensors_seen]
         e.unique_buffers = [t for t in e.mod.buffers() if id(t) not in tensors_seen]
         e.unique_outputs = [t for t in e.outputs if id(t) not in tensors_seen]
-        e.requires_grad = [t.requires_grad for t in e.mod.parameters() if id(t) not in tensors_seen]
-        tensors_seen |= {id(t) for t in e.unique_params + e.unique_buffers + e.unique_outputs}
+        e.requires_grad = [
+            t.requires_grad for t in e.mod.parameters() if id(t) not in tensors_seen
+        ]
+        tensors_seen |= {
+            id(t) for t in e.unique_params + e.unique_buffers + e.unique_outputs
+        }
 
     # Filter out redundant entries.
     if skip_redundant:
-        entries = [e for e in entries if len(e.unique_params) or len(e.unique_buffers) or len(e.unique_outputs)]
+        entries = [
+            e
+            for e in entries
+            if len(e.unique_params) or len(e.unique_buffers) or len(e.unique_outputs)
+        ]
 
     # Construct table.
-    rows = [[type(module).__name__, 'Parameters', 'Buffers', 'Output shape', 'Datatype', "requires grad"]]
-    rows += [['---'] * len(rows[0])]
+    rows = [
+        [
+            type(module).__name__,
+            "Parameters",
+            "Buffers",
+            "Output shape",
+            "Datatype",
+            "requires grad",
+        ]
+    ]
+    rows += [["---"] * len(rows[0])]
     param_total = 0
     buffer_total = 0
     submodule_names = {mod: name for name, mod in module.named_modules()}
     for e in entries:
-        name = '<top-level>' if e.mod is module else submodule_names[e.mod]
+        name = "<top-level>" if e.mod is module else submodule_names[e.mod]
         param_size = sum(t.numel() for t in e.unique_params)
         buffer_size = sum(t.numel() for t in e.unique_buffers)
         requires_grad = any(e.requires_grad) if param_size != 0 else "-"
         output_shapes = [str(list(e.outputs[0].shape)) for t in e.outputs]
-        output_dtypes = [str(t.dtype).split('.')[-1] for t in e.outputs]
-        rows += [[
-            name + (':0' if len(e.outputs) >= 2 else ''),
-            str(param_size) if param_size else '-',
-            str(buffer_size) if buffer_size else '-',
-            (output_shapes + ['-'])[0],
-            (output_dtypes + ['-'])[0],
-            str(requires_grad)
-        ]]
+        output_dtypes = [str(t.dtype).split(".")[-1] for t in e.outputs]
+        rows += [
+            [
+                name + (":0" if len(e.outputs) >= 2 else ""),
+                str(param_size) if param_size else "-",
+                str(buffer_size) if buffer_size else "-",
+                (output_shapes + ["-"])[0],
+                (output_dtypes + ["-"])[0],
+                str(requires_grad),
+            ]
+        ]
         for idx in range(1, len(e.outputs)):
-            rows += [[name + f':{idx}', '-', '-', output_shapes[idx], output_dtypes[idx]]]
+            rows += [
+                [name + f":{idx}", "-", "-", output_shapes[idx], output_dtypes[idx]]
+            ]
         param_total += param_size
         buffer_total += buffer_size
-    rows += [['---'] * len(rows[0])]
-    rows += [['Total', str(param_total), str(buffer_total), '-', '-', "-"]]
+    rows += [["---"] * len(rows[0])]
+    rows += [["Total", str(param_total), str(buffer_total), "-", "-", "-"]]
 
     # Print table.
-    widths = [max(len(cell) for cell in column) for column in zip(*rows)]
+    widths = [max(len(cell) for cell in column) for column in zip(*rows, strict=False)]
     if rank() != 0:
         return
     print()
     for row in rows:
-        print('  '.join(cell + ' ' * (width - len(cell)) for cell, width in zip(row, widths)))
+        print(
+            "  ".join(
+                cell + " " * (width - len(cell))
+                for cell, width in zip(row, widths, strict=False)
+            )
+        )
     print()
     return outputs
+
 
 def cuda_stream_wrap(stream):
     if torch.cuda.is_available():
@@ -182,20 +219,22 @@ def cuda_stream_wrap(stream):
             yield
         finally:
             pass
+
     return placeholder(stream)
 
 
 class DataPrefetcher:
     """
-        A dataloader wrapper to prefetch batches to GPU memory.
+    A dataloader wrapper to prefetch batches to GPU memory.
     """
 
-    def __init__(self,
-                 loader: torch.utils.data.DataLoader,
-                 gpu_transform: torch.nn.Module,
-                 channels_last=False,
-                 to_float=True,
-                 ):
+    def __init__(
+        self,
+        loader: torch.utils.data.DataLoader,
+        gpu_transform: torch.nn.Module,
+        channels_last=False,
+        to_float=True,
+    ):
         self.original_loader = loader
         self.stream = None
         if torch.cuda.is_available():
@@ -220,7 +259,11 @@ class DataPrefetcher:
                         memory_format = None
                         if item.ndim == 4 and self.channels_last:
                             memory_format = torch.channels_last
-                        self.batch[key] = self.batch[key].to(device=get_device(), memory_format=memory_format, non_blocking=True)
+                        self.batch[key] = self.batch[key].to(
+                            device=get_device(),
+                            memory_format=memory_format,
+                            non_blocking=True,
+                        )
                         if self.to_float:
                             self.batch[key] = self.batch[key].float()
                     if isinstance(item, dict):
@@ -230,7 +273,11 @@ class DataPrefetcher:
                             memory_format = None
                             if v.ndim == 4 and self.channels_last:
                                 memory_format = torch.channels_last
-                            item[k] = item[k].to(device=get_device(), memory_format=memory_format, non_blocking=True)
+                            item[k] = item[k].to(
+                                device=get_device(),
+                                memory_format=memory_format,
+                                non_blocking=True,
+                            )
                             if self.to_float:
                                 item[k] = item[k].float()
             if isinstance(self.batch, (tuple)):
@@ -256,16 +303,16 @@ class DataPrefetcher:
         self.loader = iter(self.original_loader)
         self._preload()
         return self
-    
+
     def __getattr__(self, name: str) -> Any:
         return getattr(self.original_loader, name)
-
 
 
 # ----------------------------------------------------------------------------
 # Sampler for torch.utils.data.DataLoader that loops over the dataset
 # indefinitely, shuffling items as it goes.
 # From https://github.com/NVlabs/stylegan2-ada-pytorch/blob/main/torch_utils/misc.py
+
 
 class InfiniteSampler(torch.utils.data.Sampler):
     def __init__(self, dataset, rank=0, num_replicas=1, shuffle=True, window_size=0.5):
@@ -304,16 +351,16 @@ class InfiniteSampler(torch.utils.data.Sampler):
 @torch.no_grad()
 def im2numpy(images, to_uint8=False):
     """
-        Converts torch image [N, C, H, W] to [N, H, W, C] numpy tensor
-        Args:
-            to_uint8: Convert to uint8 tensor
+    Converts torch image [N, C, H, W] to [N, H, W, C] numpy tensor
+    Args:
+        to_uint8: Convert to uint8 tensor
     """
     single_image = False
     if len(images.shape) == 3:
         single_image = True
         images = images[None]
     if to_uint8:
-        images = images.mul(255).round().clamp(0,255).byte()
+        images = images.mul(255).round().clamp(0, 255).byte()
     images = images.detach().cpu().numpy()
 
     images = np.moveaxis(images, 1, -1)
@@ -325,10 +372,10 @@ def im2numpy(images, to_uint8=False):
 @torch.no_grad()
 def im2torch(im, cuda=False, to_float=True):
     """
-        Converts numpy of shape [H, W, C] to torch tensor of shape [N, C, H, W].
-        Args:
-            to_float: Convert uint8 to float
-            cuda: Move image to GPU VRAM
+    Converts numpy of shape [H, W, C] to torch tensor of shape [N, C, H, W].
+    Args:
+        to_float: Convert uint8 to float
+        cuda: Move image to GPU VRAM
     """
     assert len(im.shape) in [3, 4]
     single_image = len(im.shape) == 3
@@ -352,44 +399,56 @@ def num_parameters(model: torch.nn.Module):
     return sum(np.prod(p.shape) for p in model.parameters())
 
 
-
-
 try:
-    symbolic_assert = torch._assert # 1.8
+    symbolic_assert = torch._assert  # 1.8
 except AttributeError:
-    symbolic_assert = torch.Assert # 1.7.0
+    symbolic_assert = torch.Assert  # 1.7.0
 
 
 def assert_shape(tensor: torch.Tensor, ref_shape):
     """
-        Assert that the shape of a tensor matches the given list of integers.
-        None indicates that the size of a dimension is allowed to vary.
-        Performs symbolic assertion when used in torch.jit.trace().
-        Function adapted from: https://www.github.com/nvlabs/stylegan3
+    Assert that the shape of a tensor matches the given list of integers.
+    None indicates that the size of a dimension is allowed to vary.
+    Performs symbolic assertion when used in torch.jit.trace().
+    Function adapted from: https://www.github.com/nvlabs/stylegan3
     """
     if tensor.ndim != len(ref_shape):
-        raise AssertionError(f'Wrong number of dimensions: got {tensor.ndim}, expected {len(ref_shape)}')
-    for idx, (size, ref_size) in enumerate(zip(tensor.shape, ref_shape)):
+        raise AssertionError(
+            f"Wrong number of dimensions: got {tensor.ndim}, expected {len(ref_shape)}"
+        )
+    for idx, (size, ref_size) in enumerate(zip(tensor.shape, ref_shape, strict=False)):
         if ref_size is None:
             pass
         elif isinstance(ref_size, torch.Tensor):
-            with suppress_tracer_warnings(): # as_tensor results are registered as constants
-                symbolic_assert(torch.equal(torch.as_tensor(size), ref_size), f'Wrong size for dimension {idx}')
+            with (
+                suppress_tracer_warnings()
+            ):  # as_tensor results are registered as constants
+                symbolic_assert(
+                    torch.equal(torch.as_tensor(size), ref_size),
+                    f"Wrong size for dimension {idx}",
+                )
         elif isinstance(size, torch.Tensor):
-            with suppress_tracer_warnings(): # as_tensor results are registered as constants
-                symbolic_assert(torch.equal(size, torch.as_tensor(ref_size)), f'Wrong size for dimension {idx}: expected {ref_size}')
+            with (
+                suppress_tracer_warnings()
+            ):  # as_tensor results are registered as constants
+                symbolic_assert(
+                    torch.equal(size, torch.as_tensor(ref_size)),
+                    f"Wrong size for dimension {idx}: expected {ref_size}",
+                )
         elif size != ref_size:
-            raise AssertionError(f'Wrong size for dimension {idx}: got {size}, expected {ref_size}')
-
+            raise AssertionError(
+                f"Wrong size for dimension {idx}: got {size}, expected {ref_size}"
+            )
 
 
 class suppress_tracer_warnings(warnings.catch_warnings):
     """
-        Context manager to suppress known warnings in torch.jit.trace().
+    Context manager to suppress known warnings in torch.jit.trace().
     """
+
     def __enter__(self):
         super().__enter__()
-        warnings.simplefilter('ignore', category=torch.jit.TracerWarning)
+        warnings.simplefilter("ignore", category=torch.jit.TracerWarning)
         return self
 
 

@@ -1,6 +1,7 @@
 import pydoc
 from typing import Any
 
+
 def _convert_target_to_string(t: Any) -> str:
     """
     Inverse of ``locate()``.

@@ -3,7 +3,8 @@ import dataclasses
 import logging
 from collections import abc
 from typing import Any
-from .utils import _convert_target_to_string, locate
+
+from tops.config.utils import _convert_target_to_string, locate
 
 __all__ = ["dump_dataclass", "instantiate"]
 

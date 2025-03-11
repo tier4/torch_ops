@@ -1,16 +1,23 @@
-import pathlib
-import validators
-import torch
-import os
 import errno
+import os
+import pathlib
 import sys
 import warnings
-from urllib.parse import urlparse
-from pathlib import Path
 from hashlib import md5
+from pathlib import Path
+from urllib.parse import urlparse
+
+import torch
+import validators
 
 
-def download_file(url, progress=True, check_hash=False, file_name=None, subdir=None):
+def download_file(
+    url: str,
+    progress: bool = True,
+    check_hash: bool = False,
+    file_name: str | None = None,
+    subdir: str | None = None,
+) -> pathlib.Path:
     r"""Downloads and caches file to TORCH CACHE
         Adapted from: torch.hub.load_state_dict_from_url
 
@@ -26,13 +33,15 @@ def download_file(url, progress=True, check_hash=False, file_name=None, subdir=N
         file_name (string, optional): name for the downloaded file. Filename from `url` will be used if not set.
     Example:
         >>> state_dict = tops.download_file('https://s3.amazonaws.com/pytorch/models/resnet18-5c106cde.pth')
-    """
+    """  # noqa: E501
     # Issue warning to move data if old env is set
-    if os.getenv('TORCH_MODEL_ZOO'):
-        warnings.warn('TORCH_MODEL_ZOO is deprecated, please use env TORCH_HOME instead')
+    if os.getenv("TORCH_MODEL_ZOO"):
+        warnings.warn(
+            "TORCH_MODEL_ZOO is deprecated, please use env TORCH_HOME instead"
+        )
 
     hub_dir = torch.hub.get_dir()
-    model_dir = os.path.join(hub_dir, 'checkpoints')
+    model_dir = os.path.join(hub_dir, "checkpoints")
 
     try:
         os.makedirs(model_dir)
@@ -58,19 +67,15 @@ def download_file(url, progress=True, check_hash=False, file_name=None, subdir=N
             r = torch.hub.HASH_REGEX.search(filename)  # r is Optional[Match[str]]
             hash_prefix = r.group(1) if r else None
         cached_file.parent.mkdir(exist_ok=True, parents=True)
-        torch.hub.download_url_to_file(url, cached_file, hash_prefix, progress=progress)
+        torch.hub.download_url_to_file(
+            url, str(cached_file), hash_prefix, progress=progress
+        )
     return cached_file
 
 
-def is_image(impath: Path):
-    return impath.suffix.lower() in [".jpg", ".png", ".jpeg", ".bmp", ".webp"]
-
-
-def is_video(impath: Path):
-    return impath.suffix.lower() in [".mp4", ".webm", ".avi"]
-
-
-def load_file_or_url(path: str, map_location=None, md5sum: str = None):
+def load_file_or_url(
+    path: str, map_location: torch.device | None = None, md5sum: str | None = None
+) -> torch.nn.Module:
     filepath = pathlib.Path(path)
     if not torch.cuda.is_available():
         map_location = torch.device("cpu")
@@ -81,6 +86,8 @@ def load_file_or_url(path: str, map_location=None, md5sum: str = None):
     if md5sum is not None:
         with open(filepath, "rb") as fp:
             cur_md5sum = md5(fp.read()).hexdigest()
-        assert md5sum == cur_md5sum, \
-            f"The downloaded file does not match the given md5sum. Downloaded file md5: {cur_md5sum}, expected: {md5sum}"
+        assert (
+            md5sum == cur_md5sum
+        ), "The downloaded file does not match the given md5sum. "
+        f"Downloaded file md5: {cur_md5sum}, expected: {md5sum}"
     return torch.load(filepath, map_location=map_location)

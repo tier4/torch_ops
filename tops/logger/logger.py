@@ -13,7 +13,8 @@ import torch
 from PIL import Image
 from torch.utils import tensorboard
 
-from .. import np_make_image_grid, rank, world_size
+from tops.utils.dist_utils import rank
+from tops.utils.misc import np_make_image_grid
 
 _global_step = 0
 _epoch = 0

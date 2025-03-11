@@ -7,3 +7,4 @@ torch
 tqdm
 Pillow
 tensorboard
+yaml

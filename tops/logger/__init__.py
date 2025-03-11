@@ -1,4 +1,15 @@
 from .logger import (
-    log, add_dict, add_scalar, add_images,
-    epoch, global_step, step, step_epoch, finish, warn_once, warn,
-    get_scalars, capture_log_stdout)
+    add_dict,
+    add_images,
+    add_scalar,
+    capture_log_stdout,
+    epoch,
+    finish,
+    get_scalars,
+    global_step,
+    log,
+    step,
+    step_epoch,
+    warn,
+    warn_once,
+)

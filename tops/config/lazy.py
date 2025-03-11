@@ -1,27 +1,25 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
 import ast
 import builtins
-from functools import partial
 import importlib
 import inspect
 import logging
 import os
 import uuid
-import cloudpickle
-import yaml
 from collections import abc
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import is_dataclass
+from functools import partial
 from typing import List, Tuple, Union
 
+import cloudpickle
+import yaml
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
-from .utils import _convert_target_to_string
+from tops.config.utils import _convert_target_to_string
 
 __all__ = ["LazyCall", "LazyConfig"]
-
-
 
 
 class LazyCall:
@@ -268,7 +266,9 @@ class LazyConfig:
         save_pkl = False
         try:
             dict = OmegaConf.to_container(cfg, resolve=False)
-            dumped = yaml.dump(dict, default_flow_style=None, allow_unicode=True, width=9999)
+            dumped = yaml.dump(
+                dict, default_flow_style=None, allow_unicode=True, width=9999
+            )
             with open(filename, "w") as f:
                 f.write(dumped)
 
@@ -400,7 +400,11 @@ class LazyConfig:
                     kwargs = ""
                 return f"functools.partial({obj.func.__name__}, " + args + kwargs + ")"
             elif isinstance(obj, list):
-                return "[" + ",".join(_to_str(x, inside_call=inside_call) for x in obj) + "]"
+                return (
+                    "["
+                    + ",".join(_to_str(x, inside_call=inside_call) for x in obj)
+                    + "]"
+                )
             elif callable(obj):
                 return obj.__name__
             else:

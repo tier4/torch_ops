@@ -1,6 +1,3 @@
-
 # Copyright (c) Facebook, Inc. and its affiliates.
-from .instantiate import instantiate
-from .lazy import LazyCall, LazyConfig
-
-
+from tops.config.instantiate import instantiate
+from tops.config.lazy import LazyCall, LazyConfig

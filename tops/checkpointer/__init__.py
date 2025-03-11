@@ -1,4 +1,8 @@
 from .checkpointer import (
-    load_checkpoint, save_checkpoint, has_checkpoint,
-    register_models, save_registered_models,
-    load_registered_models)
+    has_checkpoint,
+    load_checkpoint,
+    load_registered_models,
+    register_models,
+    save_checkpoint,
+    save_registered_models,
+)
