@@ -1,7 +1,6 @@
-import os
-import pathlib
 from argparse import ArgumentError
-from typing import List, Optional
+from pathlib import Path
+from typing import Any, List
 
 import torch
 from easydict import EasyDict
@@ -10,19 +9,19 @@ from tops.logger import global_step, log
 from tops.logger.logger import _write_metadata
 from tops.utils.torch_utils import get_device, rank
 
-_checkpoint_dir = None
+_checkpoint_dir: Path | None = None
 _models = None
 
 
-def init(checkpoint_dir: pathlib.Path) -> None:
+def init(checkpoint_dir: Path) -> None:
     global _checkpoint_dir
     _checkpoint_dir = checkpoint_dir
 
 
 def load_checkpoint(
-    checkpoint_path: Optional[os.PathLike] = None,
+    checkpoint_path: Path | None = None,
     load_best: bool = False,
-    map_location=None,
+    map_location: torch.device | None = None,
 ) -> dict:
     """
     checkpoint_path has to be a directory path, filepath. If none, tops has to be initialized (tops.init).
@@ -32,11 +31,12 @@ def load_checkpoint(
     if checkpoint_path is None:
         checkpoint_path = _checkpoint_dir
         if _checkpoint_dir is None:
-            raise ArgumentError(
+            raise ValueError(
                 "Both the provided checkpoint_path and global checkpoint_dir is None."
                 + "You have to initialize tops or provide a checkpoint."
             )
-    checkpoint_path = pathlib.Path(checkpoint_path)
+    assert checkpoint_path is not None
+    checkpoint_path = Path(checkpoint_path)
     if checkpoint_path.is_file():
         ckpt = torch.load(checkpoint_path, map_location=map_location)
         log(f"Loaded checkpoint from {checkpoint_path}")
@@ -62,7 +62,7 @@ def load_checkpoint(
     return ckpt
 
 
-def get_ckpt_paths(checkpoint_dir: pathlib.Path) -> List[pathlib.Path]:
+def get_ckpt_paths(checkpoint_dir: Path) -> List[Path]:
     checkpoint_dir.mkdir(exist_ok=True, parents=True)
     checkpoints = [x for x in checkpoint_dir.glob("*.ckpt") if x.stem != "best_model"]
     checkpoints.sort(key=lambda x: int(x.stem.split("_")[-1]))
@@ -71,14 +71,10 @@ def get_ckpt_paths(checkpoint_dir: pathlib.Path) -> List[pathlib.Path]:
 
 def save_checkpoint(
     state_dict: dict,
-    checkpoint_dir: Optional[os.PathLike] = None,
+    checkpoint_dir: Path | None = None,
     is_best: bool = False,
-    max_keep=1,
+    max_keep: int = 1,
 ) -> None:
-    """
-    Args:
-        checkpoint_path: path to file or folder.
-    """
     if rank() != 0:
         return
     if checkpoint_dir is None:
@@ -99,16 +95,16 @@ def save_checkpoint(
         previous_checkpoint_paths[0].unlink()
 
 
-def has_checkpoint(checkpoint_dir: Optional[os.PathLike] = None) -> bool:
+def has_checkpoint(checkpoint_dir: Path | None = None) -> bool:
     if checkpoint_dir is None:
         assert _checkpoint_dir is not None
         checkpoint_dir = _checkpoint_dir
-    checkpoint_dir = pathlib.Path(checkpoint_dir)
+    checkpoint_dir = Path(checkpoint_dir)
     num_checkpoints = len(list(checkpoint_dir.glob("*.ckpt")))
     return num_checkpoints > 0
 
 
-def register_models(models: dict):
+def register_models(models: dict) -> None:
     global _models
     for key, model in models.items():
         if isinstance(model, (dict, EasyDict)):
@@ -120,7 +116,7 @@ def register_models(models: dict):
     _models = models
 
 
-def save_registered_models(other_state: dict = None, **kwargs):
+def save_registered_models(other_state: dict | None = None, **kwargs: Any) -> None:
     assert _models is not None
     state_dict = {}
     for key, model in _models.items():
@@ -137,7 +133,7 @@ def save_registered_models(other_state: dict = None, **kwargs):
     _write_metadata()
 
 
-def load_registered_models(**kwargs):
+def load_registered_models(**kwargs: Any) -> dict:
     assert _models is not None
     state_dict = load_checkpoint(**kwargs)
     for key, state in state_dict.items():
