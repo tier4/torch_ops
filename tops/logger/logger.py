@@ -1,22 +1,19 @@
 import atexit
-
-import json
 import functools
+import json
 import logging
-from contextlib import contextmanager
-import torch
-import numpy as np
-try:
-    import wandb
-except:
-    pass
 from abc import ABC, abstractmethod
 from argparse import ArgumentError
+from contextlib import contextmanager
 from pathlib import Path
 from typing import List, Union
-from torch.utils import tensorboard
-from .. import np_make_image_grid, rank, world_size
+
+import numpy as np
+import torch
 from PIL import Image
+from torch.utils import tensorboard
+
+from .. import np_make_image_grid, rank, world_size
 
 _global_step = 0
 _epoch = 0
@@ -25,7 +22,7 @@ _epoch = 0
 INFO = logging.INFO
 WARN = logging.WARN
 DEBUG = logging.DEBUG
-supported_backends = ["stdout", "json", "tensorboard", "wandb", "image_dumper"]
+supported_backends = ["stdout", "json", "tensorboard", "image_dumper"]
 _output_dir = None
 
 DEFAULT_SCALAR_LEVEL = DEBUG
@@ -74,7 +71,9 @@ class TensorBoardBackend(Backend):
 
 class StdOutBackend(Backend):
     def __init__(self, filepath: Path, print_to_file=True) -> None:
-        logFormatter = logging.Formatter("%(asctime)s [%(levelname)-5.5s] %(filename)s:%(lineno)4d %(message)s")
+        logFormatter = logging.Formatter(
+            "%(asctime)s [%(levelname)-5.5s] %(filename)s:%(lineno)4d %(message)s"
+        )
         self.rootLogger = logging.getLogger()
         self.rootLogger.setLevel(DEFAULT_LOGGER_LEVEL)
 
@@ -147,68 +146,13 @@ class JSONBackend(Backend):
         log("JSON write done.")
 
 
-class WandbBackend(Backend):
-    def has_previous_run(self):
-        return self.output_dir.joinpath("wandb_id.txt").is_file()
-
-    def get_run_id(self):
-        run_id_path = self.output_dir.joinpath("wandb_id.txt")
-        if run_id_path.is_file():
-            with open(run_id_path, "r") as fp:
-                uid = str(fp.readlines()[0])
-                return uid
-        uid = wandb.util.generate_id()
-        with open(run_id_path, "w") as fp:
-            fp.write(str(uid))
-        return uid
-
-    def __init__(
-        self,
-        output_dir: Path,
-        project,
-        experiment_name,
-        cfg,
-        reinit: bool,  # Allow multiple wandb instances in the same process
-    ) -> None:
-        super().__init__()
-        self.output_dir = output_dir
-        resume = self.has_previous_run()
-        self.run = wandb.init(
-            project=project,
-            dir=str(output_dir),
-            name=str(experiment_name),
-            config=dict(cfg),
-            id=self.get_run_id(),
-            resume=resume,
-            reinit=reinit,
-        )
-
-    def add_scalar(self, tag, value, commit=False, **kwargs):
-        wandb.log({tag: value, "global_step": _global_step}, commit=commit)
-
-    def add_dict(self, dictionary: dict, commit=False, **kwargs):
-        dictionary["global_step"] = _global_step
-        wandb.log(dictionary, commit=commit)
-
-    def add_image(self, tag, im: np.ndarray, **kwargs):
-        wandb.log({tag: wandb.Image(im), "global_step": _global_step}, **kwargs)
-
-    def finish(self):
-        self.run.finish()
-        wandb.finish()
-        log("Wandb write done.")
-
-
 _backends: List[Backend] = [StdOutBackend(None, False)]
 
 
 def init(
-        output_dir, backends,
-        experiment_name=None, # Only required for wandb logging
-        project=None, # Only required for wandb logging
-        cfg=None, # Only required for wandb logging
-        reinit=False
-        ):
+    output_dir,
+    backends,
+):
     global _backends, _output_dir
     for backend in _backends:
         backend.finish()
@@ -231,12 +175,6 @@ def init(
             _backends.append(TensorBoardBackend(output_dir.joinpath("tensorboard")))
         if backend == "json":
             _backends.append(JSONBackend(output_dir.joinpath("scalars.json")))
-        if backend == "wandb":
-            assert experiment_name is not None
-            assert project is not None
-            _backends.append(
-                WandbBackend(output_dir, project, experiment_name, cfg, reinit)
-            )
         if backend == "image_dumper":
             _backends.append(ImageDumper(output_dir.joinpath("images")))
 
@@ -345,7 +283,9 @@ def _write_metadata():
         return
     with open(_output_dir.joinpath("metadata.json.tmp"), "w") as fp:
         json.dump(dict(global_step=_global_step, epoch=_epoch), fp)
-    _output_dir.joinpath("metadata.json.tmp").rename(_output_dir.joinpath("metadata.json"))
+    _output_dir.joinpath("metadata.json.tmp").rename(
+        _output_dir.joinpath("metadata.json")
+    )
     log("Metadata write done.")
 
 
@@ -370,7 +310,7 @@ def global_step():
 
 def get_scalars(tag, json_path=None, n_smoothing=1, smooth_fnc=np.mean):
     """
-        n_smoothing > 1 will return the mean for every nth example
+    n_smoothing > 1 will return the mean for every nth example
     """
     assert n_smoothing >= 1
     if json_path is None:
@@ -390,11 +330,16 @@ def get_scalars(tag, json_path=None, n_smoothing=1, smooth_fnc=np.mean):
                 continue
             data_point_idx += 1
             data_points.append(data_point)
-    
+
     global_step = [x["global_step"] for x in data_points]
     values = [x[tag] for x in data_points]
-    values = [smooth_fnc(values[i:i+n_smoothing]) for i in range(n_smoothing-1, len(values), n_smoothing)]
-    global_step = [global_step[i] for i in range(n_smoothing-1, len(global_step), n_smoothing)]
+    values = [
+        smooth_fnc(values[i : i + n_smoothing])
+        for i in range(n_smoothing - 1, len(values), n_smoothing)
+    ]
+    global_step = [
+        global_step[i] for i in range(n_smoothing - 1, len(global_step), n_smoothing)
+    ]
     return values, global_step
 
 
@@ -413,4 +358,3 @@ def capture_log_stdout():
     finally:
         if b is not None:
             b.rootLogger.setLevel(old_level)
-        
