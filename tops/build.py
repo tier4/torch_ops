@@ -2,7 +2,6 @@ from pathlib import Path
 
 from tops.checkpointer.checkpointer import init as init_checkpointer
 from tops.logger.logger import init as _init_logger
-from tops.utils.git_diff import dump_git_diff
 
 
 def init(
@@ -19,4 +18,3 @@ def init(
     if checkpoint_dir is None:
         checkpoint_dir = output_dir.joinpath("checkpoints")
     init_checkpointer(checkpoint_dir)
-    dump_git_diff(output_dir)
