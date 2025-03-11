@@ -10,7 +10,13 @@ from tops.logger.logger import _write_metadata
 from tops.utils.torch_utils import get_device, rank
 
 _checkpoint_dir: Path | None = None
-_models = None
+_models: (
+    dict[
+        str,
+        torch.nn.parallel.DistributedDataParallel | torch.nn.Module | dict | EasyDict,
+    ]
+    | None
+) = None
 
 
 def init(checkpoint_dir: Path) -> None:
@@ -106,13 +112,13 @@ def has_checkpoint(checkpoint_dir: Path | None = None) -> bool:
 
 def register_models(models: dict) -> None:
     global _models
-    for key, model in models.items():
+    for _, model in models.items():
         if isinstance(model, (dict, EasyDict)):
             continue
         if not hasattr(model, "state_dict"):
-            raise ArgumentError("The model has to have a state_dict")
+            raise ValueError("The model has to have a state_dict")
         if not hasattr(model, "load_state_dict"):
-            raise ArgumentError("The model has to have load_state_dict")
+            raise ValueError("The model has to have load_state_dict")
     _models = models
 
 
@@ -133,16 +139,23 @@ def save_registered_models(other_state: dict | None = None, **kwargs: Any) -> No
     _write_metadata()
 
 
-def load_registered_models(**kwargs: Any) -> dict:
+def load_registered_models(
+    checkpoint_path: Path | None = None,
+    map_location: torch.device | None = None,
+    strict: bool = True,
+) -> dict:
     assert _models is not None
-    state_dict = load_checkpoint(**kwargs)
+    state_dict = load_checkpoint(
+        checkpoint_path=checkpoint_path, map_location=map_location
+    )
     for key, state in state_dict.items():
         if key in _models:
-            if isinstance(_models[key], (dict, EasyDict)):
-                _models[key].update(state)
+            v = _models[key]
+            if isinstance(v, (dict, EasyDict)):
+                v.update(state)
             else:
-                if isinstance(_models[key], torch.nn.parallel.DistributedDataParallel):
-                    _models[key].module.load_state_dict(state)
+                if isinstance(v, torch.nn.parallel.DistributedDataParallel):
+                    v.module.load_state_dict(state, strict=strict)
                 else:
-                    _models[key].load_state_dict(state)
+                    v.load_state_dict(state, strict=strict)
     return {k: v for k, v in state_dict.items() if key not in _models}
