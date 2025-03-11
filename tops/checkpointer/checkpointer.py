@@ -1,4 +1,3 @@
-from argparse import ArgumentError
 from pathlib import Path
 from typing import Any, List
 
@@ -13,7 +12,12 @@ _checkpoint_dir: Path | None = None
 _models: (
     dict[
         str,
-        torch.nn.parallel.DistributedDataParallel | torch.nn.Module | dict | EasyDict,
+        torch.nn.parallel.DistributedDataParallel
+        | torch.nn.Module
+        | torch.amp.GradScaler
+        | torch.optim.Optimizer
+        | dict
+        | EasyDict,
     ]
     | None
 ) = None
@@ -156,6 +160,10 @@ def load_registered_models(
             else:
                 if isinstance(v, torch.nn.parallel.DistributedDataParallel):
                     v.module.load_state_dict(state, strict=strict)
-                else:
+                elif isinstance(v, torch.nn.Module):
                     v.load_state_dict(state, strict=strict)
+                elif isinstance(v, (torch.optim.Optimizer, torch.amp.GradScaler)):
+                    v.load_state_dict(state)
+                else:
+                    raise ValueError(f"Unexpected model type: {type(v)}")
     return {k: v for k, v in state_dict.items() if key not in _models}
