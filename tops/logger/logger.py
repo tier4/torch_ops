@@ -95,7 +95,7 @@ class StdOutBackend(Backend):
     def add_dict(self, values, level, **kwargs):
         msg = f"[{_global_step}] "
         for tag, value in values.items():
-            msg += f"{tag}: {value:.3f}, "
+            msg += f"{tag}: {value:.3e}, "
         self.rootLogger.log(level, msg)
 
     def log(self, msg, level, **kwargs):
