@@ -11,8 +11,6 @@ setup(
         "validators",
         "numpy",
         "torch",
-        "tqdm",
-        "Pillow",
         "tensorboard",
         "pyyaml",
     ],
