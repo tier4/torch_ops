@@ -6,7 +6,6 @@ from abc import ABC, abstractmethod
 from argparse import ArgumentError
 from contextlib import contextmanager
 from pathlib import Path
-from typing import List
 
 import numpy as np
 import torch
@@ -135,7 +134,7 @@ class JSONBackend(Backend):
         log("JSON write done.")
 
 
-_backends: List[Backend] = [StdOutBackend(None, False)]
+_backends: list[Backend] = [StdOutBackend(None, False)]
 
 
 def init(

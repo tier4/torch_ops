@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, List
+from typing import Any
 
 import torch
 from easydict import EasyDict
@@ -72,7 +72,7 @@ def load_checkpoint(
     return ckpt
 
 
-def get_ckpt_paths(checkpoint_dir: Path) -> List[Path]:
+def get_ckpt_paths(checkpoint_dir: Path) -> list[Path]:
     checkpoint_dir.mkdir(exist_ok=True, parents=True)
     checkpoints = [x for x in checkpoint_dir.glob("*.ckpt") if x.stem != "best_model"]
     checkpoints.sort(key=lambda x: int(x.stem.split("_")[-1]))

@@ -11,7 +11,6 @@ from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import is_dataclass
 from functools import partial
-from typing import List, Tuple, Union
 
 import cloudpickle
 import yaml
@@ -164,7 +163,7 @@ class LazyConfig:
     """
 
     @staticmethod
-    def load_rel(filename: str, keys: Union[None, str, Tuple[str, ...]] = None):
+    def load_rel(filename: str, keys: None | str | tuple[str, ...] = None):
         """
         Similar to :meth:`load()`, but load path relative to the caller's
         source file.
@@ -180,7 +179,7 @@ class LazyConfig:
         return LazyConfig.load(filename, keys)
 
     @staticmethod
-    def load(filename: str, keys: Union[None, str, Tuple[str, ...]] = None):
+    def load(filename: str, keys: None | str | tuple[str, ...] = None):
         """
         Load a config file.
 
@@ -295,7 +294,7 @@ class LazyConfig:
                 pass
 
     @staticmethod
-    def apply_overrides(cfg, overrides: List[str]):
+    def apply_overrides(cfg, overrides: list[str]):
         """
         In-place override contents of cfg.
 
