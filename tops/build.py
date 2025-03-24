@@ -6,7 +6,7 @@ from tops.logger.logger import init as _init_logger
 
 def init(
     output_dir: Path,
-    logging_backend: list[str] = ["stdout", "json", "tensorboard", "image_dumper"],
+    logging_backend: list[str] = ["stdout", "json", "tensorboard"],
     checkpoint_dir: Path | None = None,
 ) -> None:
     output_dir = Path(output_dir)

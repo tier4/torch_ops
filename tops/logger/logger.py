@@ -14,7 +14,6 @@ from PIL import Image
 from torch.utils import tensorboard
 
 from tops.utils.dist_utils import rank
-from tops.utils.misc import np_make_image_grid
 
 _global_step = 0
 _epoch = 0
@@ -23,7 +22,7 @@ _epoch = 0
 INFO = logging.INFO
 WARN = logging.WARN
 DEBUG = logging.DEBUG
-supported_backends = ["stdout", "json", "tensorboard", "image_dumper"]
+supported_backends = ["stdout", "json", "tensorboard"]
 _output_dir = None
 
 DEFAULT_SCALAR_LEVEL = DEBUG
@@ -114,16 +113,6 @@ class StdOutBackend(Backend):
         self.consoleHandler.close()
 
 
-class ImageDumper(Backend):
-    def __init__(self, image_dir: Path) -> None:
-        self.image_dir = image_dir
-
-    def add_image(self, tag, im: np.ndarray, **kwargs):
-        self.image_dir.joinpath(tag).mkdir(exist_ok=True, parents=True)
-        impath = self.image_dir.joinpath(tag, f"{_global_step}.png")
-        Image.fromarray(im).save(impath)
-
-
 class JSONBackend(Backend):
     def __init__(self, filepath: Path) -> None:
         self.filepath = filepath
@@ -176,8 +165,6 @@ def init(
             _backends.append(TensorBoardBackend(output_dir.joinpath("tensorboard")))
         if backend == "json":
             _backends.append(JSONBackend(output_dir.joinpath("scalars.json")))
-        if backend == "image_dumper":
-            _backends.append(ImageDumper(output_dir.joinpath("images")))
 
     atexit.register(finish)
 
@@ -227,32 +214,6 @@ def add_dict(values: dict, level=None, **kwargs):
         backend.add_dict(
             {tag: _handle_scalar(v) for tag, v in values.items()}, level=level, **kwargs
         )
-
-
-def add_images(tag, images: Union[np.ndarray, torch.ByteTensor], nrow=10, **kwargs):
-    """
-    images: a single image or list of images. List of images will be saved as a image matrix with nrow rows.
-    """
-    if rank() != 0:
-        return
-    assert images.ndim in [3, 4]
-    if isinstance(images, np.ndarray):
-        assert images.dtype == np.uint8
-        if images.ndim == 4:
-            images = np_make_image_grid(images, nrow)
-
-    if isinstance(images, torch.Tensor):
-        assert images.dtype == torch.uint8
-        images = images.cpu()
-        if images.ndim == 4:
-            images = images.permute(0, 2, 3, 1).contiguous().numpy()
-            images = np_make_image_grid(images, nrow)
-        elif images.ndim == 3:
-            images = images.permute(1, 2, 0).contiguous().numpy()
-    assert images.ndim == 3
-    assert images.dtype == np.uint8
-    for backend in _backends:
-        backend.add_image(tag, images, **kwargs)
 
 
 def finish():

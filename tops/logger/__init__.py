@@ -1,6 +1,5 @@
 from .logger import (
     add_dict,
-    add_images,
     add_scalar,
     capture_log_stdout,
     epoch,
