@@ -6,11 +6,10 @@ from abc import ABC, abstractmethod
 from argparse import ArgumentError
 from contextlib import contextmanager
 from pathlib import Path
-from typing import List, Union
+from typing import List
 
 import numpy as np
 import torch
-from PIL import Image
 from torch.utils import tensorboard
 
 from tops.utils.dist_utils import rank
