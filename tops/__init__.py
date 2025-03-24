@@ -5,7 +5,6 @@ from .utils.dist_utils import (
     world_size,
 )
 from .utils.file_util import download_file, load_file_or_url
-from .utils.misc import capture_stdout
 from .utils.torch_utils import (
     AMP,
     get_device,
