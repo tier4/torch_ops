@@ -36,6 +36,8 @@ def init(checkpoint_dir: Path) -> None:
     """  # noqa: E501
     global _checkpoint_dir
     _checkpoint_dir = checkpoint_dir
+    if not _checkpoint_dir.exists():
+        _checkpoint_dir.mkdir(parents=True)
 
 
 def load_checkpoint(
